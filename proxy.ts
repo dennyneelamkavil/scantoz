@@ -22,34 +22,6 @@ const PERMISSION_ROUTES: Array<{
     path: /^\/users/,
     permission: "user:read",
   },
-  {
-    path: /^\/subcategories/,
-    permission: "subcategory:read",
-  },
-  {
-    path: /^\/categories/,
-    permission: "category:read",
-  },
-  {
-    path: /^\/products/,
-    permission: "product:read",
-  },
-  {
-    path: /^\/seo/,
-    permission: "seo:read",
-  },
-  {
-    path: /^\/sellers/,
-    permission: "seller:read",
-  },
-  {
-    path: /^\/customers/,
-    permission: "customer:read",
-  },
-  {
-    path: /^\/orders/,
-    permission: "order:read",
-  },
 ];
 
 const AUTH_PAGES = ["/signin"];
