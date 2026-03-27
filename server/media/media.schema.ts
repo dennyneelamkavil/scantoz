@@ -16,6 +16,9 @@ export const MediaSchema = new Schema(
       enum: ["image", "video"],
       required: true,
     },
+    bytes: {
+      type: Number,
+    },
     alt: {
       type: String,
       trim: true,
@@ -27,5 +30,5 @@ export const MediaSchema = new Schema(
       maxlength: 300,
     },
   },
-  { _id: false }
+  { _id: false },
 );

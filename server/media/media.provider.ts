@@ -28,6 +28,11 @@ export async function uploadToCloudinary(
           folder,
           public_id: options?.publicId,
           resource_type: "auto",
+
+          quality: "auto:good", // smart compression (NOT aggressive)
+          fetch_format: "auto", // converts to best format (webp/avif)
+          flags: "progressive", // better loading for large images
+          transformation: [{ width: 2000, crop: "limit" }], // limit max dimensions to 2000x2000
         },
         (error, result) => {
           if (error || !result) return reject(error);
@@ -36,6 +41,7 @@ export async function uploadToCloudinary(
             url: result.secure_url,
             publicId: result.public_id,
             resourceType: result.resource_type as "image" | "video",
+            bytes: result.bytes,
           });
         },
       )
