@@ -33,20 +33,13 @@ const InvoiceSchema = new Schema(
 
     vendorName: { type: String },
 
+    trnNumber: { type: String },
+
     grossAmount: { type: Number },
     taxAmount: { type: Number },
     totalAmount: { type: Number },
 
-    currency: { type: String, default: "INR" },
-
-    items: [
-      {
-        name: String,
-        quantity: Number,
-        price: Number,
-        total: Number,
-      },
-    ],
+    currency: { type: String, default: "AED" },
 
     aiProcessed: { type: Boolean, default: false },
 
