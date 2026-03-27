@@ -5,28 +5,31 @@ import { headers } from "next/headers";
 import jwt from "jsonwebtoken";
 
 import { authOptions } from "@/server/auth/config";
-
 import { hasPermission } from "@/lib/authorization";
+
 import type { RoleWithPermissionKeys } from "@/lib/types";
 
 type JwtPayload = {
   sub: string;
   username: string;
-  role: RoleWithPermissionKeys;
+  role?: RoleWithPermissionKeys;
+  userType: "admin" | "customer";
+  companyId?: string;
 };
 
 export async function requirePermission(permissions: string | string[]) {
-  // 1️⃣ Try NextAuth session (browser)
   const session = await getServerSession(authOptions);
 
   let role: RoleWithPermissionKeys | undefined;
+  let userType: "admin" | "customer" | undefined;
 
-  if (session?.user?.role) {
-    role = session.user.role;
+  if (session?.user) {
+    role = session.user.role || undefined;
+    userType = session.user.userType;
   }
 
-  // 2️⃣ Fallback to Bearer token (Postman / API)
-  if (!role) {
+  // fallback for API
+  if (!userType) {
     const hdrs = await headers();
     const authHeader = hdrs.get("authorization");
 
@@ -36,15 +39,25 @@ export async function requirePermission(permissions: string | string[]) {
       const decoded = jwt.verify(token, process.env.JWT_SECRET!) as JwtPayload;
 
       role = decoded.role;
+      userType = decoded.userType;
     }
   }
 
-  // 3️⃣ No auth at all
-  if (!role) {
+  // ❌ No auth
+  if (!userType) {
     throw new Error("Unauthorized");
   }
 
-  // 4️⃣ Permission check (includes super-admin bypass)
+  // 🔥 Customers DO NOT use RBAC
+  if (userType === "customer") {
+    return;
+  }
+
+  // ❌ Admin but no role
+  if (!role) {
+    throw new Error("Forbidden");
+  }
+
   if (!hasPermission(role, permissions)) {
     throw new Error("Forbidden");
   }

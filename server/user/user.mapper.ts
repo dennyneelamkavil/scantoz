@@ -1,18 +1,26 @@
 export function mapUser(user: any) {
   return {
     id: String(user._id),
+
     username: user.username,
-    fullname: user.fullname,
+    name: user.name,
+
     email: user.email,
     phone: user.phone,
+
+    userType: user.userType,
+    companyId: user.companyId ? String(user.companyId) : null,
+
     isActive: user.isActive,
-    role: user.role
+
+    role: user.roleId
       ? {
-          id: String(user.role._id),
-          name: user.role.name,
-          isSuperAdmin: user.role.isSuperAdmin,
+          id: String(user.roleId._id),
+          name: user.roleId.name,
+          isSuperAdmin: user.roleId.isSuperAdmin,
         }
       : null,
+
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   };

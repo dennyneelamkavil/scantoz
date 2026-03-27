@@ -1,24 +1,21 @@
 import type { RoleBase } from "./role";
 
-/**
- * Lightweight user reference
- * Use for lists, selectors, and nested relations
- */
 export interface UserBase {
   id: string;
   username: string;
-  fullname: string;
+  name: string;
+
   email?: string;
   phone?: string;
+
+  userType: "admin" | "customer";
+  companyId?: string | null;
+
   isActive: boolean;
 }
 
-/**
- * Full User model
- * Represents populated API response
- */
 export interface User extends UserBase {
-  role: RoleBase; // populated
+  role?: RoleBase | null;
   createdAt: string;
   updatedAt: string;
 }

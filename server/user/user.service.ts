@@ -16,34 +16,47 @@ import type {
 } from "@/server/user/user.validation";
 
 import { buildSortSpec } from "@/server/utils/build-sort-spec";
-
 import { AppError } from "@/server/errors/AppError";
 
 /* ================= VERIFY ================= */
 export async function verifyUser(username: string, password: string) {
   await connectDB();
 
-  const user = await UserModel.findOne({ username, isActive: true }).populate({
-    path: "role",
+  const user = await UserModel.findOne({
+    username,
+    isActive: true,
+    isDeleted: false,
+  }).populate({
+    path: "roleId",
     populate: { path: "permissions" },
   });
+
   if (!user) return null;
 
   const ok = await bcrypt.compare(password, user.password);
   if (!ok) return null;
 
-  const role = user.role as any;
+  let role = null;
+
+  // 🔥 Only admins have roles
+  if (user.userType === "admin" && user.roleId) {
+    const r: any = user.roleId;
+
+    role = {
+      id: String(r._id),
+      name: r.name,
+      isSuperAdmin: r.isSuperAdmin,
+      permissions: r.permissions.map((p: any) => p.key),
+    };
+  }
 
   return {
     id: String(user._id),
     username: user.username,
-    role: {
-      id: String(role._id),
-      name: role.name,
-      isSuperAdmin: role.isSuperAdmin,
-      permissions: role.permissions.map((p: any) => p.key),
-    },
-    fullname: user.fullname,
+    name: user.name,
+    userType: user.userType,
+    companyId: user.companyId ? String(user.companyId) : null,
+    role,
   };
 }
 
@@ -61,10 +74,17 @@ export async function createUser(input: CreateUserInput) {
   const user = await UserModel.create({
     username: input.username,
     password: passwordHash,
-    fullname: input.fullname,
+    name: input.name,
     email: input.email,
     phone: input.phone,
-    role: input.role,
+
+    userType: input.userType,
+
+    companyId: input.companyId,
+    isOwner: input.isOwner ?? false,
+
+    roleId: input.roleId || null,
+
     isActive: input.isActive ?? true,
   });
 
@@ -81,20 +101,40 @@ export async function listUsers(params: {
   sortDir?: string;
   roleId?: string;
   isActive?: string;
+  userType?: string;
 }) {
   await connectDB();
 
-  if (params?.all) {
-    const users = await UserModel.find({
-      username: { $ne: "superadmin" },
-      isActive: true,
-    })
+  const query: any = {
+    isDeleted: false,
+  };
+
+  if (params.userType) {
+    query.userType = params.userType;
+  }
+
+  if (params.search) {
+    query.$or = [
+      { username: { $regex: params.search, $options: "i" } },
+      { name: { $regex: params.search, $options: "i" } },
+      { email: { $regex: params.search, $options: "i" } },
+    ];
+  }
+
+  if (params.roleId) {
+    query.roleId = params.roleId;
+  }
+
+  if (params.isActive === "true") query.isActive = true;
+  if (params.isActive === "false") query.isActive = false;
+
+  if (params.all) {
+    const users = await UserModel.find(query)
       .populate({
-        path: "role",
+        path: "roleId",
         populate: { path: "permissions" },
       })
-      .collation({ locale: "en", strength: 2 })
-      .sort({ username: 1 })
+      .sort({ createdAt: -1 })
       .lean();
 
     return {
@@ -109,49 +149,25 @@ export async function listUsers(params: {
 
   const { sortSpec, sortBy, sortDir } = buildSortSpec({
     type: "user",
-    sortBy: params?.sortBy,
-    sortDir: params?.sortDir,
+    sortBy: params.sortBy,
+    sortDir: params.sortDir,
     defaultSortBy: "createdAt",
     defaultSortDir: "desc",
   });
 
-  const query: any = {
-    username: { $ne: "superadmin" },
-  };
-
-  if (params.search) {
-    query.$or = [
-      { username: { $regex: params.search, $options: "i" } },
-      { fullname: { $regex: params.search, $options: "i" } },
-      { email: { $regex: params.search, $options: "i" } },
-    ];
-  }
-
-  if (params?.roleId) {
-    query.role = params.roleId;
-  }
-
-  if (params?.isActive === "true") {
-    query.isActive = true;
-  } else if (params?.isActive === "false") {
-    query.isActive = false;
-  }
-
   const [users, total] = await Promise.all([
     UserModel.find(query)
       .populate({
-        path: "role",
+        path: "roleId",
         populate: { path: "permissions" },
       })
-      .collation({ locale: "en", strength: 2 })
       .sort(sortSpec)
       .skip(skip)
       .limit(limit)
       .lean(),
+
     UserModel.countDocuments(query),
   ]);
-
-  const totalPages = Math.ceil(total / limit);
 
   return {
     data: users.map(mapUser),
@@ -159,7 +175,7 @@ export async function listUsers(params: {
       page,
       limit,
       total,
-      totalPages,
+      totalPages: Math.ceil(total / limit),
     },
     sort: {
       by: sortBy,
@@ -174,7 +190,7 @@ export async function getUserById(id: string) {
 
   const user = await UserModel.findById(id)
     .populate({
-      path: "role",
+      path: "roleId",
       populate: { path: "permissions" },
     })
     .lean();
@@ -182,6 +198,7 @@ export async function getUserById(id: string) {
   if (!user) {
     throw new AppError("User not found", 404);
   }
+
   return mapUser(user);
 }
 
@@ -191,6 +208,7 @@ export async function updateUser(id: string, input: UpdateUserInput) {
 
   const session = await auth();
   const currentUserId = session?.user?.id;
+
   if (!currentUserId) {
     throw new AppError("Unauthorized", 401);
   }
@@ -198,25 +216,6 @@ export async function updateUser(id: string, input: UpdateUserInput) {
   const existing = await UserModel.findById(id).lean();
   if (!existing) {
     throw new AppError("User not found", 404);
-  }
-
-  // SYSTEM USER GUARD
-  if (existing.username === "superadmin") {
-    throw new AppError("System user cannot be modified", 403);
-  }
-
-  // SELF USER GUARD
-  if (id === currentUserId) {
-    if (input.role && String(existing.role) !== String(input.role)) {
-      throw new AppError("You cannot change your own role", 403);
-    }
-
-    if (
-      typeof input.isActive === "boolean" &&
-      existing.isActive !== input.isActive
-    ) {
-      throw new AppError("You cannot deactivate your own account", 403);
-    }
   }
 
   const update: any = { ...input };
@@ -228,13 +227,10 @@ export async function updateUser(id: string, input: UpdateUserInput) {
   const user = await UserModel.findByIdAndUpdate(id, update, {
     new: true,
   }).populate({
-    path: "role",
+    path: "roleId",
     populate: { path: "permissions" },
   });
 
-  if (!user) {
-    throw new AppError("User not found", 404);
-  }
   return mapUser(user);
 }
 
@@ -244,26 +240,21 @@ export async function deleteUser(id: string) {
 
   const session = await auth();
   const currentUserId = session?.user?.id;
+
   if (!currentUserId) {
     throw new AppError("Unauthorized", 401);
   }
 
-  // SELF USER GUARD
   if (id === currentUserId) {
     throw new AppError("You cannot delete your own account", 403);
   }
 
-  const user = await UserModel.findById(id).select("username");
+  const user = await UserModel.findById(id);
   if (!user) {
     throw new AppError("User not found", 404);
   }
 
-  // SYSTEM USER GUARD
-  if (user.username === "superadmin") {
-    throw new AppError("System user cannot be deleted", 403);
-  }
-
-  await UserModel.findByIdAndDelete(id);
+  await UserModel.findByIdAndUpdate(id, { isDeleted: true });
 
   return { success: true };
 }

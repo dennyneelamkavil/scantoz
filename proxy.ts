@@ -83,21 +83,26 @@ export async function proxy(req: NextRequest) {
   }
 
   // 3️⃣ Permission-based route protection
-  if (token?.role) {
+  if (token) {
+    const userType = token.userType as "admin" | "customer";
+
+    // 🔥 Customers → no RBAC restriction
+    if (userType === "customer") {
+      return NextResponse.next();
+    }
+
     const role = token.role as {
       isSuperAdmin: boolean;
       permissions: string[];
     };
 
-    // Super admin bypass
-    if (role.isSuperAdmin) {
+    if (role?.isSuperAdmin) {
       return NextResponse.next();
     }
 
-    // Check mapped permission routes
     for (const route of PERMISSION_ROUTES) {
       if (route.path.test(pathname)) {
-        const hasPermission = role.permissions.includes(route.permission);
+        const hasPermission = role?.permissions?.includes(route.permission);
 
         if (!hasPermission) {
           return NextResponse.redirect(new URL("/403", req.url));

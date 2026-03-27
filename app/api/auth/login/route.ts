@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
+
 import { verifyUser } from "@/server/user/user.service";
 
 const LoginSchema = z.object({
@@ -21,7 +22,7 @@ export async function POST(req: Request) {
   if (!user) {
     return NextResponse.json(
       { error: "Invalid username or password" },
-      { status: 401 }
+      { status: 401 },
     );
   }
 
@@ -29,10 +30,16 @@ export async function POST(req: Request) {
     {
       sub: user.id,
       username: user.username,
-      role: user.role,
+      name: user.name,
+
+      userType: user.userType,
+      companyId: user.companyId || null,
+
+      // only for admins
+      role: user.role || null,
     },
     process.env.JWT_SECRET!,
-    { expiresIn: "7d" }
+    { expiresIn: "7d" },
   );
 
   return NextResponse.json({

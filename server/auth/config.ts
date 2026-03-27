@@ -32,7 +32,7 @@ export const authOptions: NextAuthOptions = {
 
         const user = await verifyUser(
           parsed.data.username,
-          parsed.data.password
+          parsed.data.password,
         );
 
         if (!user) {
@@ -49,8 +49,12 @@ export const authOptions: NextAuthOptions = {
       if (user) {
         token.id = user.id;
         token.username = user.username;
-        token.role = user.role;
-        token.fullname = user.fullname;
+        token.name = user.name;
+        token.userType = user.userType;
+        token.companyId = user.companyId || null;
+
+        // only for admin
+        token.role = user.role || null;
       }
       return token;
     },
@@ -60,9 +64,12 @@ export const authOptions: NextAuthOptions = {
         ...session.user,
         id: token.id as string,
         username: token.username as string,
-        role: token.role as RoleWithPermissionKeys,
-        fullname: token.fullname as string,
+        name: token.name as string,
+        userType: token.userType as "admin" | "customer",
+        companyId: token.companyId as string | null,
+        role: token.role as RoleWithPermissionKeys | null,
       };
+
       return session;
     },
   },

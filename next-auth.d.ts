@@ -6,16 +6,24 @@ declare module "next-auth" {
     user: {
       id: string;
       username: string;
-      role: RoleWithPermissionKeys;
-      fullname: string;
+      name: string;
+
+      userType: "admin" | "customer";
+      companyId: string | null;
+
+      role: RoleWithPermissionKeys | null;
     };
   }
 
   interface User {
     id: string;
     username: string;
-    role: RoleWithPermissionKeys;
-    fullname: string;
+    name: string;
+
+    userType: "admin" | "customer";
+    companyId?: string | null;
+
+    role?: RoleWithPermissionKeys | null;
   }
 }
 
@@ -23,7 +31,11 @@ declare module "next-auth/jwt" {
   interface JWT {
     id: string;
     username: string;
-    role: RoleWithPermissionKeys;
-    fullname: string;
+    name: string;
+
+    userType: "admin" | "customer";
+    companyId?: string | null;
+
+    role?: RoleWithPermissionKeys | null;
   }
 }
