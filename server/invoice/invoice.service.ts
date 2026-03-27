@@ -15,11 +15,12 @@ import type {
 } from "./invoice.validation";
 
 import { AppError } from "@/server/errors/AppError";
+import { processInvoiceWithAI } from "@/server/utils/invoice-ai.util";
 
 /* ================= CREATE INVOICE ================= */
 export async function createInvoice(
   fileBuffer: Buffer,
-  input: CreateInvoiceInput,
+  input: { documentId: string },
 ) {
   await connectDB();
 
@@ -30,13 +31,11 @@ export async function createInvoice(
 
   const { user } = session;
 
-  // 🔥 Validate document
   const document = await DocumentModel.findById(input.documentId);
   if (!document || document.isDeleted) {
     throw new AppError("Document not found", 404);
   }
 
-  // 🔥 Company check
   if (
     user.userType === "customer" &&
     String(document.companyId) !== user.companyId
@@ -44,10 +43,13 @@ export async function createInvoice(
     throw new AppError("Forbidden", 403);
   }
 
-  // ☁️ Upload file
+  // Upload file FIRST
   const media = await uploadToCloudinary(fileBuffer, {
     folder: "invoices",
   });
+
+  // RUN AI
+  const aiResult = await processInvoiceWithAI(media.url);
 
   const invoice = await InvoiceModel.create({
     companyId: document.companyId,
@@ -57,21 +59,28 @@ export async function createInvoice(
 
     file: media,
 
-    invoiceNumber: input.invoiceNumber,
-    invoiceDate: input.invoiceDate ? new Date(input.invoiceDate) : undefined,
+    // 🤖 AI DATA
+    invoiceNumber: aiResult.data.invoiceNumber,
+    invoiceDate: aiResult.data.invoiceDate
+      ? new Date(aiResult.data.invoiceDate)
+      : null,
 
-    vendorName: input.vendorName,
+    vendorName: aiResult.data.vendorName,
+    trnNumber: aiResult.data.trnNumber,
 
-    grossAmount: input.grossAmount,
-    taxAmount: input.taxAmount,
-    totalAmount: input.totalAmount,
+    grossAmount: aiResult.data.grossAmount,
+    taxAmount: aiResult.data.taxAmount,
+    totalAmount: aiResult.data.totalAmount,
 
-    currency: input.currency || "INR",
+    currency: aiResult.data.currency || "AED",
 
-    status: "uploaded",
+    aiProcessed: true,
+    aiRawResponse: aiResult.raw,
+    rawData: aiResult.data,
+
+    status: "pending",
   });
 
-  // 🔥 update document count
   await DocumentModel.findByIdAndUpdate(document._id, {
     $inc: { totalInvoices: 1 },
   });
