@@ -7,6 +7,7 @@ import { InvoiceModel } from "@/server/models/invoice.model";
 import { DocumentModel } from "@/server/models/document.model";
 
 import { uploadToCloudinary } from "@/server/media/media.provider";
+import { processInvoiceWithAI } from "@/server/utils/invoice-ai.util";
 
 import { mapInvoice } from "./invoice.mapper";
 import type {
@@ -15,7 +16,6 @@ import type {
 } from "./invoice.validation";
 
 import { AppError } from "@/server/errors/AppError";
-import { processInvoiceWithAI } from "@/server/utils/invoice-ai.util";
 
 /* ================= CREATE INVOICE ================= */
 export async function createInvoice(
@@ -115,8 +115,8 @@ export async function listInvoices(documentId: string) {
   return invoices.map(mapInvoice);
 }
 
-/* ================= UPDATE ================= */
-export async function updateInvoice(id: string, input: UpdateInvoiceInput) {
+/* ================= REPROCESS AI ================= */
+export async function reprocessInvoiceAI(id: string) {
   await connectDB();
 
   const session = await auth();
@@ -129,10 +129,89 @@ export async function updateInvoice(id: string, input: UpdateInvoiceInput) {
     throw new AppError("Invoice not found", 404);
   }
 
-  const update: any = { ...input };
+  // 🔥 company safety
+  if (
+    session.user.userType === "customer" &&
+    String(invoice.companyId) !== session.user.companyId
+  ) {
+    throw new AppError("Forbidden", 403);
+  }
+
+  if (!invoice.file?.url) {
+    throw new AppError("Invoice file not found", 400);
+  }
+
+  // 🤖 Re-run AI
+  const aiResult = await processInvoiceWithAI(invoice.file.url);
+
+  const updated = await InvoiceModel.findByIdAndUpdate(
+    id,
+    {
+      invoiceNumber: aiResult.data.invoiceNumber,
+      invoiceDate: aiResult.data.invoiceDate
+        ? new Date(aiResult.data.invoiceDate)
+        : null,
+
+      vendorName: aiResult.data.vendorName,
+      trnNumber: aiResult.data.trnNumber,
+
+      grossAmount: aiResult.data.grossAmount,
+      taxAmount: aiResult.data.taxAmount,
+      totalAmount: aiResult.data.totalAmount,
+
+      currency: aiResult.data.currency || "AED",
+
+      aiProcessed: true,
+      aiRawResponse: aiResult.raw,
+      rawData: aiResult.data,
+
+      isEdited: false, // reset manual edits
+      status: "pending",
+    },
+    { new: true },
+  );
+
+  return mapInvoice(updated);
+}
+
+/* ================= REVIEW ================= */
+export async function reviewInvoice(id: string, input: UpdateInvoiceInput) {
+  await connectDB();
+
+  const session = await auth();
+  if (!session?.user) {
+    throw new AppError("Unauthorized", 401);
+  }
+
+  const invoice = await InvoiceModel.findById(id);
+  if (!invoice) {
+    throw new AppError("Invoice not found", 404);
+  }
+
+  // company safety
+  if (
+    session.user.userType === "customer" &&
+    String(invoice.companyId) !== session.user.companyId
+  ) {
+    throw new AppError("Forbidden", 403);
+  }
+
+  const update: any = {
+    ...input,
+    isEdited: true,
+  };
 
   if (input.invoiceDate) {
     update.invoiceDate = new Date(input.invoiceDate);
+  }
+
+  // status handling
+  if (input.status === "approved") {
+    update.status = "approved";
+  } else if (input.status === "rejected") {
+    update.status = "rejected";
+  } else {
+    update.status = "pending";
   }
 
   const updated = await InvoiceModel.findByIdAndUpdate(id, update, {

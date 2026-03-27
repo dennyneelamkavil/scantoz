@@ -26,7 +26,7 @@ export const UpdateInvoiceSchema = z.object({
   taxAmount: z.number().optional(),
   totalAmount: z.number().optional(),
 
-  status: z.enum(["uploaded", "pending", "rejected", "approved"]).optional(),
+  status: z.enum(["pending", "rejected", "approved"]).optional(),
 
   isEdited: z.boolean().optional(),
 });

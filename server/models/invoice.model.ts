@@ -53,8 +53,8 @@ const InvoiceSchema = new Schema(
 
     status: {
       type: String,
-      enum: ["uploaded", "pending", "rejected", "approved"],
-      default: "uploaded",
+      enum: ["pending", "rejected", "approved"],
+      default: "pending",
     },
 
     isEdited: { type: Boolean, default: false },
