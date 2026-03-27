@@ -7,14 +7,22 @@ import {
 import { requirePermission } from "@/server/auth/rbac";
 import { UpdateUserSchema } from "@/server/user/user.validation";
 import { handleApiError } from "@/server/errors/handleApiError";
+import { auth } from "@/server/auth/session";
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
     await requirePermission("user:read");
+
+    // enforce admin only
+    const session = await auth();
+    if (session?.user?.userType !== "admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     const user = await getUserById(id);
     return NextResponse.json(user);
   } catch (err) {
@@ -24,11 +32,17 @@ export async function GET(
 
 export async function PUT(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
     await requirePermission("user:update");
+
+    // enforce admin only
+    const session = await auth();
+    if (session?.user?.userType !== "admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
 
     const body = await request.json();
     const parsed = UpdateUserSchema.safeParse(body);
@@ -36,7 +50,7 @@ export async function PUT(
     if (!parsed.success) {
       return NextResponse.json(
         { error: parsed.error.flatten() },
-        { status: 400 }
+        { status: 400 },
       );
     }
 
@@ -49,11 +63,18 @@ export async function PUT(
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id } = await params;
     await requirePermission("user:delete");
+
+    // enforce admin only
+    const session = await auth();
+    if (session?.user?.userType !== "admin") {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
     await deleteUser(id);
     return NextResponse.json({ success: true });
   } catch (err) {
