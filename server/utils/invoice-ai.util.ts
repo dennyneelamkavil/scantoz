@@ -18,25 +18,68 @@ export async function processInvoiceWithAI(imageUrl: string) {
             {
               type: "text",
               text: `
-Extract invoice details from this image.
+                You are an intelligent invoice data extraction system.
 
-Return strictly in JSON format:
-{
-  "invoiceNumber": string | null,
-  "invoiceDate": string (yyyy-mm-dd) | null,
-  "vendorName": string | null,
-  "trnNumber": string | null,
-  "grossAmount": number | null,
-  "taxAmount": number | null,
-  "totalAmount": number | null,
-  "currency": string | null
-}
+                Analyze the invoice image and extract key financial and identification details.
 
-Rules:
-- Convert numbers properly
-- Date must be yyyy-mm-dd
-- Return null if not found
-              `,
+                IMPORTANT:
+                - Field names in invoices may vary (e.g., "Invoice No", "Bill No", "Ref#", etc.)
+                - You must infer the correct values based on meaning, not exact labels
+
+                Extract the following fields:
+
+                1. invoiceNumber:
+                - Look for: Invoice No, Bill No, Inv #, Ref No, Document No
+
+                2. invoiceDate:
+                - Look for: Invoice Date, Bill Date, Date
+                - Convert to format: yyyy-mm-dd
+
+                3. vendorName:
+                - The company issuing the invoice (usually top/header/logo area)
+
+                4. trnNumber:
+                - Look for: TRN, VAT No, GSTIN, Tax Registration Number
+
+                5. grossAmount:
+                - Total before tax
+                - Look for: Subtotal, Gross Amount, Amount before tax
+
+                6. taxAmount:
+                - Look for: VAT, Tax, GST, Sales Tax
+
+                7. totalAmount:
+                - Final payable amount
+                - Look for: Total, Grand Total, Net Amount, Amount Due
+
+                8. currency:
+                - Detect from symbols (₹, $, AED, etc.) or text
+                - Default to "AED" if unclear
+
+                ---
+
+                STRICT OUTPUT FORMAT:
+                Return ONLY valid JSON. No explanation. No markdown.
+
+                {
+                "invoiceNumber": string | null,
+                "invoiceDate": string | null,
+                "vendorName": string | null,
+                "trnNumber": string | null,
+                "grossAmount": number | null,
+                "taxAmount": number | null,
+                "totalAmount": number | null,
+                "currency": string | null
+                }
+
+                ---
+
+                RULES:
+                - If a value is missing, return null
+                - Remove commas from numbers (e.g., "1,200.50" → 1200.50)
+                - Do not return text like "Not found"
+                - Ensure JSON is valid
+                `,
             },
             {
               type: "image_url",
