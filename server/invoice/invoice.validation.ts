@@ -26,6 +26,8 @@ export const UpdateInvoiceSchema = z.object({
   taxAmount: z.number().optional(),
   totalAmount: z.number().optional(),
 
+  ledgerId: z.string().optional(),
+
   status: z.enum(["pending", "rejected", "approved"]).optional(),
 
   isEdited: z.boolean().optional(),

@@ -18,6 +18,12 @@ const InvoiceSchema = new Schema(
       index: true,
     },
 
+    ledgerId: {
+      type: Types.ObjectId,
+      ref: "Ledger",
+      index: true,
+    },
+
     uploadedBy: {
       type: Types.ObjectId,
       ref: "User",

@@ -4,6 +4,7 @@ export function mapInvoice(inv: any) {
 
     documentId: String(inv.documentId),
     companyId: String(inv.companyId),
+    ledgerId: inv.ledgerId ? String(inv.ledgerId) : null,
 
     invoiceNumber: inv.invoiceNumber,
     invoiceDate: inv.invoiceDate,

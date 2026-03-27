@@ -5,6 +5,7 @@ import { auth } from "@/server/auth/session";
 
 import { InvoiceModel } from "@/server/models/invoice.model";
 import { DocumentModel } from "@/server/models/document.model";
+import { LedgerModel } from "@/server/models/ledger.model";
 
 import { uploadToCloudinary } from "@/server/media/media.provider";
 import { processInvoiceWithAI } from "@/server/utils/invoice-ai.util";
@@ -196,6 +197,22 @@ export async function reviewInvoice(id: string, input: UpdateInvoiceInput) {
     throw new AppError("Forbidden", 403);
   }
 
+  // ledger validation (only when approving)
+  if (input.status === "approved") {
+    if (!input.ledgerId) {
+      throw new AppError("Ledger is required for approval", 400);
+    }
+
+    const ledger = await LedgerModel.findOne({
+      _id: input.ledgerId,
+      isDeleted: false,
+    });
+
+    if (!ledger) {
+      throw new AppError("Ledger not found", 404);
+    }
+  }
+
   const update: any = {
     ...input,
     isEdited: true,
@@ -212,6 +229,10 @@ export async function reviewInvoice(id: string, input: UpdateInvoiceInput) {
     update.status = "rejected";
   } else {
     update.status = "pending";
+  }
+
+  if (input.ledgerId) {
+    update.ledgerId = input.ledgerId;
   }
 
   const updated = await InvoiceModel.findByIdAndUpdate(id, update, {
